@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.4.33213.308
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Aero", "Aero.vcxproj", "{56950EB7-0BFD-4DCB-BD09-3B30270C21C2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{56950EB7-0BFD-4DCB-BD09-3B30270C21C2}.Debug|x64.ActiveCfg = Debug|x64
+		{56950EB7-0BFD-4DCB-BD09-3B30270C21C2}.Debug|x64.Build.0 = Debug|x64
+		{56950EB7-0BFD-4DCB-BD09-3B30270C21C2}.Debug|x86.ActiveCfg = Debug|Win32
+		{56950EB7-0BFD-4DCB-BD09-3B30270C21C2}.Debug|x86.Build.0 = Debug|Win32
+		{56950EB7-0BFD-4DCB-BD09-3B30270C21C2}.Release|x64.ActiveCfg = Release|x64
+		{56950EB7-0BFD-4DCB-BD09-3B30270C21C2}.Release|x64.Build.0 = Release|x64
+		{56950EB7-0BFD-4DCB-BD09-3B30270C21C2}.Release|x86.ActiveCfg = Release|Win32
+		{56950EB7-0BFD-4DCB-BD09-3B30270C21C2}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C495A65C-5EC6-4CCF-B771-849E753D3F9A}
+	EndGlobalSection
+EndGlobal

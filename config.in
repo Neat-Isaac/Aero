@@ -1,0 +1,10 @@
+planets=2000
+delay=50
+max_speed=32
+left_border=-16384
+right_border=16383
+top_border=16383
+bottom_border=-16384
+background_color_red=0
+background_color_green=15
+background_color_blue=43
