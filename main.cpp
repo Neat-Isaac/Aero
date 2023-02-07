@@ -9,14 +9,15 @@
 #include <cmath>
 #include <vector>
 
-#define ARGS 11
-int N, DELAY, SPEED, L_BORDER, R_BORDER, U_BORDER, D_BORDER,BG_R,BG_G,BG_B;    //这几个原来是常量，2023.02.05改成了文件读入
-
+#define ARGS 15
+int N, DELAY, SPEED, L_BORDER, R_BORDER, U_BORDER, D_BORDER, SEP;    //这几个原来是常量，2023.02.05改成了文件读入
+int BG_R, BG_G, BG_B, CT_R, CT_G, CT_B;
 double player_x, player_y;
-int player_direction, player_angle;                             //player_direction是移动的前后方向，player_angle是朝向角度
+int player_direction, player_angle,visiting_planet;             //player_direction是移动的前后方向，player_angle是朝向角度
 int c_moving, c_shooting, c_rotate, c_slide;                    //计时器
 int velocity;
-bool is_moving,is_shooting;
+bool is_moving,is_shooting,visiting_home;
+bool pused[1000][1000];
 //std::vector<bool> planet_direction;     //这里和下面用vector是因为变量不能当数组大小
 //std::vector<int> planet_distance;
 struct Point                            //别问，问就是Vector2f不会用也不敢用
@@ -25,6 +26,7 @@ struct Point                            //别问，问就是Vector2f不会用也不敢用
 };
 struct Planet
 {
+    bool visited;
     bool direction;
     int distance;
     Point pos;
@@ -68,11 +70,16 @@ void readData()                         //读入文件设置各项数据
     BG_R = arguments[7];
     BG_G = arguments[8];
     BG_B = arguments[9];
+    CT_R = arguments[10];
+    CT_G = arguments[11];
+    CT_B = arguments[12];
+    SEP = arguments[13];
 }
 void init()     //各项数值的初始化，SFML各对象初始化没写在这里是因为不会
 {
     readData();
     player_angle = 0;
+    visiting_planet = -1;
     srand(time(NULL));
     velocity = 0;
     player_x = 0;
@@ -84,6 +91,7 @@ void init()     //各项数值的初始化，SFML各对象初始化没写在这里是因为不会
     player_direction = -1;
     c_rotate = 0;
     c_slide = 0;
+    pused[-L_BORDER / SEP][-D_BORDER] = 1;
 }
 double radian(int x)    //角度转弧度
 {
@@ -119,6 +127,59 @@ Point calcPos(int distance,int p_angle)     //给定移动方向和距离，计算目的地与出
     ret.y = rety;
     return ret;
 }
+float calcAngle(int x, int y)
+{
+    float ret;
+    float z = sqrt(x * x + y * y);
+    if (x > 0 && y > 0)
+    {
+        //printf("1");
+        ret = asin((float)y / z) * 180 / acos(-1);
+    }
+    else if (x <= 0 && y > 0)
+    {
+        x = -x;
+        ret = asin((float)x / z) * 180 / acos(-1);
+        ret += 90;
+        //printf("2");
+    }
+    else if (x < 0 && y <= 0)
+    {
+        x = -x;
+        y = -y;
+        //printf("3");
+        ret = asin((float)y / z) * 180 / acos(-1);
+        ret += 180;
+    }
+    else
+    {
+        //printf("4");
+        y = -y;
+        ret = asin((float)x / z) * 180 / acos(-1);
+        ret += 270;
+    }
+    //printf("\n%f", ret);
+    return ret;
+}
+float calcDistance(float x2, float y2, float x1, float y1)
+{
+    return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+}
+bool isSpaceEmpty(int x, int y)
+{
+    int px = (x - L_BORDER) / SEP;
+    int py = (y - D_BORDER) / SEP;
+    for (int i = px - 1; i < px + 1; i++)
+    {
+        for (int j = py - 1; j < py+1; j++)
+        {
+            if (pused[i][j])
+                return 0;
+        }
+    }
+    pused[px][py] = 1;
+    return 1;
+}
 void control(sf::Event event)           //控制角色移动
 {
     switch (event.key.code)
@@ -150,6 +211,12 @@ void control(sf::Event event)           //控制角色移动
         case sf::Keyboard::K:       //开火
             is_shooting = 1;
             c_shooting = clock();
+            break;
+        case sf::Keyboard::F:
+            if (visiting_planet >= 0)
+                pdata[visiting_planet].visited = !pdata[visiting_planet].visited;
+            else if (visiting_planet == -1)
+                visiting_home = !visiting_home;
             break;
         default:
             break;
@@ -185,10 +252,12 @@ int main()
     sf::Font font;
     sf::Sprite player, home_planet;
     std::vector<sf::Sprite> planets;        //存储各星球的vector
+    std::vector<sf::RectangleShape> chart;
     sf::RenderWindow window(sf::VideoMode(800, 600), "Aero");
     sf::View camera(sf::FloatRect(0, 0, window.getSize().x, window.getSize().y));
     sf::Text status;        //绘制坐标等数据
     sf::CircleShape dot(10.f);      //测试用
+    player.setRotation(0);
     dot.setFillColor(sf::Color::White);
     font.loadFromFile("src/font.ttf");
     idle.loadFromFile("src/idle64.png");
@@ -203,17 +272,23 @@ int main()
     home_planet.setTexture(home);
     home_planet.setOrigin(sf::Vector2f(64.f, 64.f));
     home_planet.setPosition(sf::Vector2f(0.f, 0.f));
-    double min_distance = sqrt(R_BORDER > -L_BORDER ? R_BORDER * R_BORDER : L_BORDER * L_BORDER + U_BORDER > D_BORDER ? U_BORDER * U_BORDER : D_BORDER * D_BORDER);//最远距离为地图最远顶点到原点
-    int min_planet;
+    int r_l = R_BORDER - L_BORDER;
+    int u_d = U_BORDER - D_BORDER;
+    double min_distance = calcDistance(R_BORDER,U_BORDER,L_BORDER,D_BORDER);//最远距离为地图最远顶点到原点
+    int min_planet = 0;
     for (int i = 0; i < N; i++)     //初始化各星球
     {
         sf::Sprite temp;
         temp.setOrigin(sf::Vector2f(64.f, 64.f));
         temp.setTexture(rand() % 2 ? planet1 : planet2);
         Point p;
-        p.x = (rand() % (R_BORDER - L_BORDER)) + L_BORDER;
-        p.y = (rand() % (U_BORDER - D_BORDER)) + D_BORDER;
-        double dist = sqrt(p.x * p.x + p.y * p.y);
+        p.x = 0; p.y = 0;
+        while ((p.x == 0 && p.y == 0)||!isSpaceEmpty(p.x,p.y))
+        {
+            p.x = (rand() % (R_BORDER - L_BORDER)) + L_BORDER;
+            p.y = (rand() % (U_BORDER - D_BORDER)) + D_BORDER;
+        }
+        double dist = calcDistance(p.x,p.y,0,0);
         if (dist < min_distance)
         {
             min_distance = dist;
@@ -227,13 +302,24 @@ int main()
         t.pos = p;
         pdata.push_back(t);
         planets.push_back(temp);
+        
     }
+    sf::RectangleShape homechart(sf::Vector2f(min_distance, 8.f));
+    homechart.setFillColor(sf::Color::Color(CT_R, CT_G, CT_B));
+    homechart.setRotation(calcAngle(pdata[min_planet].pos.x, pdata[min_planet].pos.y));
+    homechart.setPosition(sf::Vector2f(0, 0));
     for (int i = 0; i < N-1; i++)
     {
         int tempx = pdata[i].pos.x - pdata[i + 1].pos.x;
         int tempy = pdata[i].pos.y - pdata[i + 1].pos.y;
-        int tempdis = sqrt(tempx * tempx + tempy * tempy);
+        int tempdis = calcDistance(tempx,tempy,0,0);
         pdata[i].distance = tempdis;
+        sf::RectangleShape templine(sf::Vector2f(tempdis,8.f));
+        templine.setFillColor(sf::Color::Color(CT_R, CT_G, CT_B));
+        templine.setRotation(calcAngle(-tempx, -tempy));
+        //printf("%f\n", templine.getRotation());
+        templine.setPosition(planets[i].getPosition());
+        chart.push_back(templine);
     }
     player.setOrigin(sf::Vector2f(32.f, 32.f));
     player.setPosition(sf::Vector2f(400.f, 450.f));
@@ -266,6 +352,23 @@ int main()
             player.setTexture(fire);
         else
             player.setTexture(idle);
+        bool flag = 0;
+        for (int i = 0; i < N; i++)
+        {
+            if (calcDistance(pdata[i].pos.x, pdata[i].pos.y, player_x, player_y) <= 200)
+            {
+                flag = 1;
+                visiting_planet = i;
+            }
+        }
+        bool draw_home = calcDistance(player_x, player_y, 0, 0) <= 200;
+        if (flag == 0)
+        {
+            if (draw_home)
+                visiting_planet = -1;
+            else
+                visiting_planet = -2;
+        }
         //printf("x:%d y:%d moving count:%d shooting count:%d speed:%d\n", player_x, player_y, c_moving, c_shooting, velocity + SPEED);
         sstr.str("");
         int sx = player_x, sy = player_y;
@@ -273,9 +376,9 @@ int main()
         //std::cout << sstr.str() << std::endl;
         status.setString(sstr.str());
         player.setPosition(sf::Vector2f(player_x, player_y));
-        double sizex = window.getSize().x/2;
-        double sizey = window.getSize().y/2;
-        double s_dis = sqrt(sizex * sizex + sizey * sizey);
+        double sizex = (double)window.getSize().x/2;
+        double sizey = (double)window.getSize().y/2;
+        double s_dis = calcDistance(sizex,sizey,0,0);
         //int s_dis = 500;
         double l = asin(sizey/s_dis) * 180 / acos(-1);                          //反余弦不行，必须是反正弦
         int status_x = calcPos(s_dis-16, player_angle - 90+l).x;                //计算屏幕输出数据的位置，因为相机随玩家旋转而旋转
@@ -288,9 +391,6 @@ int main()
         camera.setRotation(player.getRotation());
         status.setRotation(player.getRotation());
         window.setView(camera);
-        //window.clear(sf::Color::Color(0, 0, 40));         //深蓝色，但是看起来有点不舒服
-        //window.clear(sf::Color::Color(0, 0, 60));         //浅了一点，但是不像星空
-        //window.clear(sf::Color::Color(0, 15, 43));          //深蓝色，混了一点绿色
         window.clear(sf::Color::Color(BG_R, BG_G, BG_B));
         bool can_rotate;
         if (clock() - c_rotate > DELAY)
@@ -301,6 +401,13 @@ int main()
         }
         else
             can_rotate = 0;
+        for (int i = 0; i < N - 1; i++)
+        {
+            if(pdata[i].visited)
+                window.draw(chart[i]);
+        }
+        if (visiting_home)
+            window.draw(homechart);
         for (int i = 0; i < N; i++)     //旋转各星球
         {
             if (can_rotate)
