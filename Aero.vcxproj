@@ -139,6 +139,7 @@
     <Image Include="src\fire64.png" />
     <Image Include="src\home.png" />
     <Image Include="src\idle64.png" />
+    <Image Include="src\meteor.png" />
     <Image Include="src\moving64.png" />
     <Image Include="src\planet1.png" />
     <Image Include="src\planet2.png" />

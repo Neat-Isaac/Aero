@@ -11,4 +11,6 @@ background_color_blue=43
 chart_color_red=80
 chart_color_green=80
 chart_color_blue=80
-distance_between_planets=256
+length_of_blocks=256
+sensing_distance=128
+meteors=2000
