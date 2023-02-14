@@ -14,3 +14,5 @@ chart_color_blue=80
 length_of_blocks=256
 sensing_distance=128
 meteors=2000
+width_of_charts=8
+colorful=1

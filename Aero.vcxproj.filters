@@ -41,6 +41,9 @@
     <Image Include="src\meteor.png">
       <Filter>资源文件</Filter>
     </Image>
+    <Image Include="src\guide.png">
+      <Filter>资源文件</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <Font Include="src\font.ttf">
@@ -49,6 +52,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="config.in">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="config2.in">
       <Filter>资源文件</Filter>
     </None>
   </ItemGroup>

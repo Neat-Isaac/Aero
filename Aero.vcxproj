@@ -137,6 +137,7 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="src\fire64.png" />
+    <Image Include="src\guide.png" />
     <Image Include="src\home.png" />
     <Image Include="src\idle64.png" />
     <Image Include="src\meteor.png" />
@@ -149,6 +150,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="config.in" />
+    <None Include="config2.in" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

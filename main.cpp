@@ -9,8 +9,8 @@
 #include <cmath>
 #include <vector>
 
-#define ARGS 17
-int N, DELAY, SPEED, L_BORDER, R_BORDER, U_BORDER, D_BORDER, SEP, SD, M;    //前几个原来是常量，2023.02.05改成了文件读入
+#define ARGS 19
+int N, DELAY, SPEED, L_BORDER, R_BORDER, U_BORDER, D_BORDER, SEP, SD, M, WCHART, CLF;    //前几个原来是常量，2023.02.05改成了文件读入
 int BG_R, BG_G, BG_B, CT_R, CT_G, CT_B;
 double player_x, player_y;
 int player_direction, player_angle, visiting_planet;             //player_direction是移动的前后方向，player_angle是朝向角度
@@ -27,13 +27,22 @@ struct MetPros
     char name[5];
     int num;
 };
+struct Chart
+{
+    int sp, ep;
+    Point start;
+    Point end;
+};
 std::vector<MetPros> bag;
+std::vector<Chart> charts;
 struct Planet
 {
     int level;
     char name[5];
+    int lines[5];
     MetPros product[6];
     MetPros sell[1000][2];      //数组开小导致了一系列bug，解决留念2023.02.09
+    int left;
     int shopsize;
     bool visited;
     bool direction;
@@ -45,7 +54,7 @@ void readData()                         //读入文件设置各项数据
 {
     int arguments[ARGS] = { 0 };
     std::ifstream fin;
-    fin.open("config.in",std::ios::in);
+    fin.open("config2.in",std::ios::in);
     std::string data[ARGS];
     for (int i = 0; std::getline(fin, data[i]); i++)
     {
@@ -84,7 +93,26 @@ void readData()                         //读入文件设置各项数据
     SEP = arguments[13];
     SD = arguments[14];
     M = arguments[15];
-    
+    WCHART = arguments[16];
+    CLF = arguments[17];
+}
+void showMap()
+{
+    system("cls");
+    for (int i = 0; i < (U_BORDER - D_BORDER) / SEP; i++)
+    {
+        for (int j = 0; j < (R_BORDER - L_BORDER) / SEP; j++)
+        {
+            //printf("%d %d\n", (player_x - L_BORDER) / SEP, (player_y - D_BORDER) / SEP);
+            if (int((player_x - L_BORDER) / SEP) == j && int((player_y - D_BORDER) / SEP) == i)
+                printf("O ");
+            else if (pused[i][j])
+                printf("* ");
+            else
+                printf(". ");
+        }
+        printf("\n");
+    }
 }
 bool isSpaceEmpty(int x, int y)                             //检查区块是否没有星球
 {
@@ -101,13 +129,79 @@ bool isSpaceEmpty(int x, int y)                             //检查区块是否没有星
     pused[px][py] = 1;
     return 1;
 }
+float calcDistance(float x2, float y2, float x1, float y1)  //计算两地距离
+{
+    return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+}
+void setCharts()
+{
+    for (int i = 0; i < N; i++)         //生成星图
+    {
+        for (int j = 0; j < pdata[i].left; j++)
+        {
+            int mindis1 = calcDistance(R_BORDER, U_BORDER, L_BORDER, D_BORDER);
+            int minpla1 = 0;
+            bool isexist2 = 0;
+            for (int k = 0; k < N; k++)
+            {
+                if (k == i || pdata[k].left == 0)
+                    continue;
+                bool isexist1 = 0;
+                for (int q = 0; q < pdata[i].level; q++)
+                {
+                    if (pdata[i].lines[q] == k)
+                    {
+                        isexist1 = 1;
+                        break;
+                    }
+                }
+                if (isexist1)
+                    continue;
+                if (calcDistance(pdata[k].pos.x, pdata[k].pos.y, pdata[i].pos.x, pdata[i].pos.y) <= mindis1)
+                {
+                    isexist2 = 1;
+                    mindis1 = calcDistance(pdata[k].pos.x, pdata[k].pos.y, pdata[i].pos.x, pdata[i].pos.y);
+                    minpla1 = k;
+                }
+            }
+            if (!isexist2)
+            {
+                pdata[i].left = 0;
+                break;
+            }
+            pdata[minpla1].left--;
+            pdata[minpla1].lines[pdata[minpla1].left] = i;
+            pdata[i].lines[j] = minpla1;
+        }
+    }
+    for (int i = 0; i < N; i++)
+    {
+        for (int j = 0; j < pdata[i].level; j++)
+        {
+            if (pdata[i].lines[j] < i)
+                continue;
+            Chart v;
+            v.sp = i;
+            v.start = pdata[i].pos;
+            v.ep = pdata[i].lines[j];
+            v.end = pdata[v.ep].pos;
+            charts.push_back(v);
+        }
+    }
+    for (int i = 0; i < charts.size(); i++)
+    {
+        if (i && charts[i].sp != charts[i - 1].sp)
+            printf("\n");
+        printf("%d-%d ", charts[i].sp, charts[i].ep);
+    }
+}
 void init()     //各项数值的初始化，SFML各对象初始化没写在这里是因为不会
 {
     readData();
     player_angle = 0;
     visiting_planet = -1;
     srand(time(NULL));
-    velocity = 0;
+    velocity = 1;
     player_x = 0;
     player_y = 0;
     is_moving = 0;
@@ -133,28 +227,36 @@ void init()     //各项数值的初始化，SFML各对象初始化没写在这里是因为不会
         t.pos = p;
         t.visited = 0;
         t.level = rand() % 6;
+        t.left = t.level;
         t.name[0] = rand() % 26 + 'A';
-        for (int i = 1; i < 5; i++)
-            t.name[i] = rand() % 26 + 'a';
-        for (int i = 0; i < t.level; i++)
+        for (int j = 1; j < 5; j++)
+            t.name[j] = rand() % 26 + 'a';
+        for (int j = 0; j < t.level; j++)
         {
-            t.product[i].name[0] = rand() % 26 + 'A';
-            for (int j = 1; j < 5; j++)
-                t.product[i].name[j] = rand() % 26 + 'a';
-            t.product[i].num = 0;
+            t.product[j].name[0] = rand() % 26 + 'A';
+            for (int k = 1; k < 5; k++)
+                t.product[j].name[k] = rand() % 26 + 'a';
+            t.product[j].num = 0;
         }
         pdata.push_back(t);
     }
+    setCharts();
     for (int i = 0; i < N; i++)
     {
         std::vector<MetPros> templist;
+        for (int j = 0; j < pdata[i].level; j++)
+        {
+            templist.push_back(pdata[i].product[j]);
+            for (int k = 0; k < pdata[pdata[i].lines[j]].level; k++)
+                templist.push_back(pdata[pdata[i].lines[j]].product[k]);
+        }/*
         for (int j = ((i-pdata[i].level) >0 ? i-pdata[i].level:0);j<((i + pdata[i].level)<N?i+pdata[i].level:N-1); j++)
         {
             if (pdata[j].level == 0)
                 continue;
             for (int k = 0; k < pdata[j].level; k++)
                 templist.push_back(pdata[j].product[k]);
-        }
+        }*/
         pdata[i].shopsize = templist.size() / 2 < pdata[i].level ? templist.size() / 2 : pdata[i].level;
         if (templist.size() < 2)
             continue;
@@ -180,6 +282,10 @@ double radian(int x)    //角度转弧度
 }
 Point calcPos(int distance,int p_angle)     //给定移动方向和距离，计算目的地与出发地的坐标差
 {
+    if (p_angle < 0)
+        p_angle += 360;
+    if (p_angle >= 360)
+        p_angle -= 360;
     int retx = 0, rety = 0;
     int angle = p_angle % 90;
     int kind = p_angle / 90;
@@ -242,10 +348,7 @@ float calcAngle(int x, int y)           //给定两地坐标差，计算旋转角度
     //printf("\n%f", ret);
     return ret;
 }
-float calcDistance(float x2, float y2, float x1, float y1)  //计算两地距离
-{
-    return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
-}
+
 void pick(MetPros thing)
 {
     bool flagtemp1 = 0;
@@ -365,14 +468,24 @@ void control(sf::Event event)           //控制角色移动
             c_shooting = clock();
             break;
         case sf::Keyboard::F:       //显示菜单
-            //printf("%d\n", pdata[visiting_planet].shopsize);
+            printf("%d\n", visiting_planet);
             if (visiting_planet >= 0)
+            {
+                for (int q = 0; q < charts.size(); q++)
+                {
+                    if (charts[q].sp == visiting_planet || charts[q].ep == visiting_planet)     //如果该星图有任意端点为此星球则绘制
+                        printf("%d-%d ", charts[q].sp, charts[q].ep);
+                }
                 pdata[visiting_planet].visited = !pdata[visiting_planet].visited;
+            }
             else if (visiting_planet == -1)
                 visiting_home = !visiting_home;
             break;
         case sf::Keyboard::E:
             show_bag = !show_bag;
+            break;
+        case sf::Keyboard::M:
+            //showMap();
             break;
         case sf::Keyboard::Num1:
             buy(1,0);
@@ -420,9 +533,9 @@ void slide()                        //松开按键后短暂滑行再停止
         if (clock() - c_slide > DELAY)
         {
             velocity -= 4;
-            if (velocity < 0)
+            if (velocity < 1)
             {
-                velocity = 0;
+                velocity = 1;
                 player_direction = -1;
             }
             c_slide = clock();
@@ -434,9 +547,9 @@ void slide()                        //松开按键后短暂滑行再停止
 int main()
 {
     init();
-    sf::Texture idle, moving, fire, planet1, planet2, home,meteor;     //各元素图片
+    sf::Texture idle, moving, fire, planet1, planet2, home,meteor,guipng;     //各元素图片
     sf::Font font;
-    sf::Sprite player, home_planet;
+    sf::Sprite player, home_planet,guide;
     std::vector<sf::Sprite> planets;                            //存储各星球精灵图的vector
     std::vector<sf::Sprite> meteors;
     std::vector<sf::RectangleShape> chart;
@@ -457,12 +570,15 @@ int main()
     planet2.loadFromFile("src/planet2.png");
     home.loadFromFile("src/home.png");
     meteor.loadFromFile("src/meteor.png");
+    guipng.loadFromFile("src/guide.png");
     status.setFont(font);
     status.setFillColor(sf::Color(255, 255, 255));
     std::stringstream sstr;     //屏幕显示的字符串
     home_planet.setTexture(home);
     home_planet.setOrigin(sf::Vector2f(64.f, 64.f));
     home_planet.setPosition(sf::Vector2f(0.f, 0.f));
+    guide.setTexture(guipng);
+    guide.setOrigin(sf::Vector2f(64.f, 64.f));
     int r_l = R_BORDER - L_BORDER;
     int u_d = U_BORDER - D_BORDER;
     double min_distance = calcDistance(R_BORDER,U_BORDER,L_BORDER,D_BORDER);//最远距离为地图最远两个顶点间距离
@@ -473,13 +589,14 @@ int main()
         temp.setOrigin(sf::Vector2f(64.f, 64.f));
         temp.setTexture(rand() % 2 ? planet1 : planet2);
         double dist = calcDistance(pdata[i].pos.x, pdata[i].pos.y, 0, 0);
-        if (dist < min_distance)
+        if (dist < min_distance && pdata[i].level)
         {
             min_distance = dist;
             min_planet = i;
         }
         temp.setPosition(sf::Vector2f(pdata[i].pos.x, pdata[i].pos.y));
-        temp.setColor(sf::Color(rand() % 256, rand() % 256, rand() % 256));
+        if(CLF)
+            temp.setColor(sf::Color(rand() % 256, rand() % 256, rand() % 256));
         temp.setRotation(rand() % 360);
         
         planets.push_back(temp);
@@ -498,7 +615,7 @@ int main()
         int min_pnet = 0;
         for (int j = 0; j < N; j++)
         {
-            if (calcDistance(pdata[j].pos.x, pdata[j].pos.y, mx, my) < min_dis&&pdata[j].level>0)
+            if (calcDistance(pdata[j].pos.x, pdata[j].pos.y, mx, my) < min_dis && pdata[j].level > 0)
             {
                 min_dis = calcDistance(pdata[j].pos.x, pdata[j].pos.y, mx, my);
                 min_pnet = j;
@@ -513,11 +630,11 @@ int main()
         meteors.push_back(temp);
         metpro.push_back(tx);
     }
-    sf::RectangleShape homechart(sf::Vector2f(min_distance, 8.f));
+    sf::RectangleShape homechart(sf::Vector2f(min_distance, WCHART));
     homechart.setFillColor(sf::Color::Color(CT_R, CT_G, CT_B));
     homechart.setRotation(calcAngle(pdata[min_planet].pos.x, pdata[min_planet].pos.y));
     homechart.setPosition(sf::Vector2f(0, 0));
-    for (int i = 0; i < N-1; i++)               //初始化星图
+    /*for (int i = 0; i < N - 1; i++)               //初始化星图
     {
         int tempx = pdata[i].pos.x - pdata[i + 1].pos.x;
         int tempy = pdata[i].pos.y - pdata[i + 1].pos.y;
@@ -528,6 +645,17 @@ int main()
         templine.setRotation(calcAngle(-tempx, -tempy));
         //printf("%f\n", templine.getRotation());
         templine.setPosition(planets[i].getPosition());
+        chart.push_back(templine);
+    }*/
+    for (int i = 0; i < charts.size(); i++)               //初始化星图
+    {
+        int tempdis = calcDistance(charts[i].start.x, charts[i].start.y, charts[i].end.x, charts[i].end.y);
+        pdata[i].distance = tempdis;
+        sf::RectangleShape templine(sf::Vector2f(tempdis, WCHART));
+        templine.setFillColor(sf::Color::Color(CT_R, CT_G, CT_B));
+        templine.setRotation(calcAngle(charts[i].end.x - charts[i].start.x, charts[i].end.y - charts[i].start.y));
+        //printf("%f\n", templine.getRotation());
+        templine.setPosition(sf::Vector2f(charts[i].start.x, charts[i].start.y));
         chart.push_back(templine);
     }
     player.setOrigin(sf::Vector2f(32.f, 32.f));
@@ -544,7 +672,8 @@ int main()
             if (event.type == sf::Event::Resized)
                 camera.setSize(event.size.width,event.size.height);
         }
-        slide();
+        if(velocity>1)
+            slide();
         if (player_x < L_BORDER)        //控制坐标在边界内
             player_x = L_BORDER;
         if (player_x > R_BORDER)
@@ -663,7 +792,10 @@ int main()
         int status_y = calcPos(s_dis-16, player_angle - 90+l).y;
         //status.setPosition(sf::Vector2f(player_x - window.getSize().x / 2, player_y - window.getSize().y / 2));
         status.setPosition(sf::Vector2f(player_x + status_x, player_y + status_y));
-        dot.setPosition(status.getPosition());
+        int guide_x = calcPos(s_dis - 192, player_angle + 90-l).x;                //计算屏幕输出数据的位置，因为相机随玩家旋转而旋转
+        int guide_y = calcPos(s_dis - 192, player_angle + 90-l).y;
+        guide.setPosition(sf::Vector2f(player_x + guide_x, player_y + guide_y));
+        dot.setPosition(guide.getPosition());
         player.setRotation(player_angle * 1.0);
         camera.setCenter(player.getPosition());
         camera.setRotation(player.getRotation());
@@ -682,7 +814,13 @@ int main()
         for (int i = 0; i < N - 1; i++)
         {
             if (pdata[i].visited)
-                window.draw(chart[i]);
+            {
+                for (int q = 0; q < chart.size(); q++)
+                {
+                    if (charts[q].sp == i || charts[q].ep == i)     //如果该星图有任意端点为此星球则绘制
+                        window.draw(chart[q]);
+                }
+            }
         }
         if (visiting_home)
             window.draw(homechart);
@@ -699,6 +837,7 @@ int main()
         if (visiting_planet >= 0 && pdata[visiting_planet].visited)
             window.draw(pinfo);
         window.draw(status);
+        window.draw(guide);
         //window.draw(dot);
         window.display();
     }
